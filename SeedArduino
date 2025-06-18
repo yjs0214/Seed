@@ -1,0 +1,123 @@
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <DHT.h>
+#include <Servo.h>  // 서보모터 라이브러리 추가
+
+// Wi-Fi 정보
+const char* ssid = "배찌배를때찌";
+const char* password = "021402140214";
+
+// GPS 시리얼 설정 (D6 = RX, D7 = TX)
+SoftwareSerial gpsSerial(D6, D7);
+TinyGPSPlus gps;
+
+// 웹 서버 생성
+ESP8266WebServer server(80);
+
+// DHT 설정
+#define DHTPIN 14    
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+
+#define SERVO_PIN 2
+Servo myServo;
+
+String lastLocation = "";
+
+// 웹페이지 출력
+void handleRoot() {
+  String html = "<html><head>";
+  html += "<meta charset='UTF-8'>";
+  html += "<meta http-equiv='refresh' content='2'>";
+  html += "<style>";
+  html += "body { font-family: Arial, sans-serif; }";
+  html += ".no-data { color: red; font-weight: bold; }";
+  html += "ul { list-style: none; padding-left: 0; }";
+  html += "li { margin-bottom: 8px; }";
+  html += "</style>";
+  html += "</head><body>";
+  html += "<h1>실시간 GPS 및 환경 정보</h1>";
+  html += lastLocation;
+  html += "</body></html>";
+  server.send(200, "text/html", html);
+}
+
+void setup() {
+  Serial.begin(115200);
+  gpsSerial.begin(9600);
+  dht.begin();
+
+  myServo.attach(SERVO_PIN);   // 서보모터 핀 연결
+  myServo.write(0);            // 서보 기본 위치
+
+  WiFi.begin(ssid, password);
+  Serial.print("WiFi 연결 중");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi 연결됨, IP: " + WiFi.localIP().toString());
+
+  server.on("/", handleRoot);
+  server.begin();
+  Serial.println("웹서버 시작됨");
+}
+
+void loop() {
+  while (gpsSerial.available()) {
+    gps.encode(gpsSerial.read());
+  }
+
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  // 🌀 습도에 따라 서보모터 제어
+  if (!isnan(humidity)) {
+    if (humidity >= 50) {
+      myServo.write(90);  // 습도 50% 이상이면 서보 90도 회전
+    } else {
+      myServo.write(0);   // 아니면 0도 위치
+    }
+  } else {
+    myServo.write(0);     // 센서 오류 시 기본 위치
+  }
+
+  // 값 표시용 문자열 구성
+  String latStr = gps.location.isValid() ? String(gps.location.lat(), 6) : "<span class='no-data'>정보 없음</span>";
+  String lngStr = gps.location.isValid() ? String(gps.location.lng(), 6) : "<span class='no-data'>정보 없음</span>";
+  String altStr = gps.altitude.isValid() ? String(gps.altitude.meters()) + " m" : "<span class='no-data'>정보 없음</span>";
+  String speedStr = gps.speed.isValid() ? String(gps.speed.kmph()) + " km/h" : "<span class='no-data'>정보 없음</span>";
+  String courseStr = gps.course.isValid() ? String(gps.course.deg()) + "°" : "<span class='no-data'>정보 없음</span>";
+  String satStr = (gps.satellites.value() > 0) ? String(gps.satellites.value()) : "<span class='no-data'>정보 없음</span>";
+
+  String timeStr;
+  if (gps.time.isValid()) {
+    timeStr = String(gps.time.hour()) + ":" +
+              (gps.time.minute() < 10 ? "0" : "") + String(gps.time.minute()) + ":" +
+              (gps.time.second() < 10 ? "0" : "") + String(gps.time.second());
+  } else {
+    timeStr = "<span class='no-data'>정보 없음</span>";
+  }
+
+  String tempStr = isnan(temperature) ? "<span class='no-data'>정보 없음</span>" : String(temperature, 1) + " °C";
+  String humStr = isnan(humidity) ? "<span class='no-data'>정보 없음</span>" : String(humidity, 1) + " %";
+
+  // HTML에 표시할 데이터 정리
+  lastLocation = "<ul>";
+  lastLocation += "<li>📍 위도: " + latStr + "</li>";
+  lastLocation += "<li>📍 경도: " + lngStr + "</li>";
+  lastLocation += "<li>⛰️ 고도: " + altStr + "</li>";
+  lastLocation += "<li>🚀 속도: " + speedStr + "</li>";
+  lastLocation += "<li>🧭 이동 방향: " + courseStr + "</li>";
+  lastLocation += "<li>📡 위성 수: " + satStr + "</li>";
+  lastLocation += "<li>⏰ 시간 (UTC): " + timeStr + "</li>";
+  lastLocation += "<li>🌡️ 온도: " + tempStr + "</li>";
+  lastLocation += "<li>💧 습도: " + humStr + "</li>";
+  lastLocation += "</ul>";
+
+  server.handleClient();
+  delay(1000);
+  }
