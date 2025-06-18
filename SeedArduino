@@ -3,7 +3,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <DHT.h>
-#include <Servo.h>  // 서보모터 라이브러리 추가
+#include <Servo.h>  
 
 // Wi-Fi 정보
 const char* ssid = "배찌배를때찌";
@@ -76,8 +76,8 @@ void loop() {
 
   // 🌀 습도에 따라 서보모터 제어
   if (!isnan(humidity)) {
-    if (humidity >= 50) {
-      myServo.write(90);  // 습도 50% 이상이면 서보 90도 회전
+    if (humidity >= 60) {
+      myServo.write(90);  // 습도 60% 이상이면 서보 90도 회전
     } else {
       myServo.write(0);   // 아니면 0도 위치
     }
