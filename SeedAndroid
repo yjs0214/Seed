@@ -1,0 +1,37 @@
+package com.cookandroid.seedmonitering
+
+import android.os.Bundle
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.appcompat.app.AppCompatActivity
+import com.cookandroid.seedmonitering.R
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var webView: WebView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        title = "씨앗 살포 시스템"
+
+        webView = findViewById(R.id.webview)  
+
+        val webSettings: WebSettings = webView.settings
+        webSettings.javaScriptEnabled = true
+
+        webView.webViewClient = WebViewClient() 
+
+        webView.loadUrl("http://192.168.166.194/") 
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
+    }
+}
